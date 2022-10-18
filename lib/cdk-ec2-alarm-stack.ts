@@ -14,6 +14,53 @@ export class CdkEc2AlarmStack extends Stack {
       assumedBy: new aws_iam.ServicePrincipal('lambda.amazonaws.com'),
     });
 
+    myRole.attachInlinePolicy( new aws_iam.Policy(this, 'LambdaPermissions', {
+      policyName: 'LambdaPermissions',
+      statements: [
+        new aws_iam.PolicyStatement({
+          effect: aws_iam.Effect.ALLOW,
+          actions: ['cloudwatch:PutMetricData'],
+          resources: ['*']
+        }),
+        new aws_iam.PolicyStatement({
+          effect: aws_iam.Effect.ALLOW,
+          actions: ["logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents",
+            "logs:DescribeLogGroups"],
+          resources: [`arn:aws:logs:${Stack.of(this).region}:${Stack.of(this).account}:log-group:*`]
+        }),
+        new aws_iam.PolicyStatement({
+          effect: aws_iam.Effect.ALLOW,
+          actions: ["logs:PutLogEvents"],
+          resources: [`arn:aws:logs:${Stack.of(this).region}:${Stack.of(this).account}:log-group:*:log-stream:*`]
+        }),
+        new aws_iam.PolicyStatement({
+          effect: aws_iam.Effect.ALLOW,
+          actions: ["ec2:DescribeInstances",
+            "ec2:DescribeImages"],
+          resources: ['*']
+        }),
+        new aws_iam.PolicyStatement({
+          effect: aws_iam.Effect.ALLOW,
+          actions: ["ec2:CreateTags"],
+          resources: [`arn:aws:ec2:${Stack.of(this).region}:${Stack.of(this).account}:instance/*`]
+        }),
+        new aws_iam.PolicyStatement({
+          effect: aws_iam.Effect.ALLOW,
+          actions: ["cloudwatch:DescribeAlarms",
+            "cloudwatch:DeleteAlarms",
+            "cloudwatch:PutMetricAlarm"],
+          resources: [`arn:aws:cloudwatch:${Stack.of(this).region}:${Stack.of(this).account}:alarm:AutoAlarm-*`]
+        }),
+        new aws_iam.PolicyStatement({
+          effect: aws_iam.Effect.ALLOW,
+          actions: ["cloudwatch:DescribeAlarms"],
+          resources: ['*']
+        }),
+      ]
+    }))
+
     const fn = new aws_lambda.Function(this, 'LambdaFunction', {
       runtime: aws_lambda.Runtime.PYTHON_3_8,
       handler: 'cw_auto_alarms.lambda_handler',
