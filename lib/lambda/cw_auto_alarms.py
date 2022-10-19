@@ -25,7 +25,7 @@ default_alarms = {
              'Key': alarm_separator.join(
                  [alarm_identifier, 'AWS/EC2', 'StatusCheckFailed_System', 'GreaterThanThreshold', '1m', 'Average', 'default1']),
              'Value': 1,
-             'Alarm': 'arn:aws:automate:us-east-1:ec2:recover'
+             'Alarm': 'arn:aws:swf:us-west-2:{CUSTOMER_ACCOUNT}:action/actions/AWS_EC2.InstanceId.Reboot/1.0''
         }
     ]
 }
