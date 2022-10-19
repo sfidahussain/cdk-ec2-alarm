@@ -67,12 +67,6 @@ export class CdkEc2AlarmStack extends Stack {
       role: myRole,
       code: aws_lambda.Code.fromAsset(path.join(__dirname, 'lambda')),
       environment: {
-        "ALARM_CPU_CREDIT_BALANCE_LOW_THRESHOLD": "100",
-        "ALARM_CPU_HIGH_THRESHOLD": "75",
-        "ALARM_DISK_PERCENT_LOW_THRESHOLD": "20",
-        "ALARM_LAMBDA_ERROR_THRESHOLD": "0",
-        "ALARM_LAMBDA_THROTTLE_THRESHOLD": "0",
-        "ALARM_MEMORY_HIGH_THRESHOLD": "75",
         "ALARM_TAG": "Create_Auto_Alarms",
         "CLOUDWATCH_APPEND_DIMENSIONS": "InstanceId, ImageId, InstanceType",
         "CLOUDWATCH_NAMESPACE": "CWAgent",

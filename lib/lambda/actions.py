@@ -51,7 +51,6 @@ def check_alarm_tag(instance_id, tag_key):
             InstanceIds=[
                 instance_id
             ]
-
         )
         # can only be one instance when called by CloudWatch Events
         if 'Reservations' in instance and len(instance['Reservations']) > 0 and len(
@@ -84,11 +83,6 @@ def process_lambda_alarms(function_name, tags, activation_tag, default_alarms, s
         logger.debug('Activation tag not found for {}, nothing to do'.format(function_name))
         return True
     else:
-        logger.debug('Processing function specific alarms for: {}'.format(default_alarms))
-        for tag_key in tags:
-            if tag_key.startswith(alarm_identifier):
-                default_alarms['AWS/Lambda'].append({'Key': tag_key, 'Value': tags[tag_key]})
-
         # get the default dimensions for AWS/EC2
         dimensions = list()
         dimensions.append(
@@ -98,20 +92,6 @@ def process_lambda_alarms(function_name, tags, activation_tag, default_alarms, s
             }
         )
 
-        for tag in default_alarms['AWS/Lambda']:
-            alarm_properties = tag['Key'].split(alarm_separator)
-            Namespace = alarm_properties[1]
-            MetricName = alarm_properties[2]
-            ComparisonOperator = alarm_properties[3]
-            Period = alarm_properties[4]
-            Statistic = alarm_properties[5]
-
-            AlarmName = alarm_separator.join([alarm_identifier, function_name, Namespace, MetricName, ComparisonOperator,
-                                                Period, Statistic])
-
-            create_alarm(AlarmName, MetricName, ComparisonOperator, Period, tag['Value'], Statistic, Namespace,
-                         dimensions, sns_topic_arn, alarm_identifier)
-
 
 def create_alarm_from_tag(id, alarm_tag, instance_info, metric_dimensions_map, sns_topic_arn, alarm_separator, alarm_identifier):
     alarm_properties = alarm_tag['Key'].split(alarm_separator)
@@ -120,26 +100,15 @@ def create_alarm_from_tag(id, alarm_tag, instance_info, metric_dimensions_map, s
     dimensions = list()
     for dimension_name in metric_dimensions_map.get(namespace, list()):
         dimension = dict()
-
-        if dimension_name == 'AutoScalingGroupName':
-            # find out if the instance is part of an autoscaling group
-            instance_asg = next(
-                (tag['Value'] for tag in instance_info['Tags'] if tag['Key'] == 'aws:autoscaling:groupName'), None)
-            if instance_asg:
-                dimension_value = instance_asg
-                dimension['Name'] = dimension_name
-                dimension['Value'] = dimension_value
-                dimensions.append(dimension)
+        dimension_value = instance_info.get(dimension_name, None)
+        if dimension_value:
+           dimension['Name'] = dimension_name
+           dimension['Value'] = dimension_value
+           dimensions.append(dimension)
         else:
-            dimension_value = instance_info.get(dimension_name, None)
-            if dimension_value:
-                dimension['Name'] = dimension_name
-                dimension['Value'] = dimension_value
-                dimensions.append(dimension)
-            else:
-                logger.warning(
-                    "Dimension {} has been specified in APPEND_DIMENSIONS but  no dimension value exists, skipping...".format(
-                        dimension_name))
+           logger.warning(
+             "Dimension {} has been specified in APPEND_DIMENSIONS but  no dimension value exists, skipping...".format(
+                 dimension_name))
 
     logger.debug("dimensions are {}".format(dimensions))
 
@@ -190,7 +159,7 @@ def create_alarm_from_tag(id, alarm_tag, instance_info, metric_dimensions_map, s
         logger.info('Description not supplied')
 
     create_alarm(AlarmName, MetricName, ComparisonOperator, Period, alarm_tag['Value'], Statistic, namespace,
-                 dimensions, sns_topic_arn)
+                 dimensions, sns_topic_arn, alarm_tag['Alarm'])
 
 
 def process_alarm_tags(instance_id, instance_info, default_alarms, metric_dimensions_map, sns_topic_arn, cw_namespace,
@@ -219,9 +188,6 @@ def process_alarm_tags(instance_id, instance_info, default_alarms, metric_dimens
 
     if create_default_alarms_flag == 'true':
         for alarm_tag in default_alarms['AWS/EC2']:
-            create_alarm_from_tag(instance_id, alarm_tag, instance_info, metric_dimensions_map, sns_topic_arn, alarm_separator, alarm_identifier)
-
-        for alarm_tag in default_alarms[cw_namespace][platform]:
             create_alarm_from_tag(instance_id, alarm_tag, instance_info, metric_dimensions_map, sns_topic_arn, alarm_separator, alarm_identifier)
     else:
         logger.info("Default alarm creation is turned off")
@@ -297,7 +263,7 @@ def convert_to_seconds(s):
 # Alarm Name Format: <AlarmIdentifier>-<InstanceId>-<Statistic>-<MetricName>-<ComparisonOperator>-<Threshold>-<Period>
 # Example:  AutoAlarm-i-00e4f327736cb077f-CPUUtilization-GreaterThanThreshold-80-5m
 def create_alarm(AlarmName, MetricName, ComparisonOperator, Period, Threshold, Statistic, Namespace, Dimensions,
-                 sns_topic_arn):
+                 sns_topic_arn, alarm_action_arn):
     AlarmDescription = 'Alarm created by lambda function CloudWatchAutoAlarms'
 
     try:
@@ -327,6 +293,9 @@ def create_alarm(AlarmName, MetricName, ComparisonOperator, Period, Threshold, S
 
         if sns_topic_arn is not None:
             alarm['AlarmActions'] = [sns_topic_arn]
+
+#         if alarm_action_arn is not None:
+#             alarm['AlarmActions'].append(alarm_action_arn)
 
         cw_client.put_metric_alarm(**alarm)
 
